@@ -33,6 +33,7 @@ public class Interaction : MonoBehaviour {
 		if(Application.isPlaying) {
 			BoxCollider trigger = gameObject.AddComponent<BoxCollider>();
 			trigger.isTrigger = true;
+            GetGeometry();// line added by me to avoid null ref exception
 			trigger.size = 2f*Geometry.GetExtents();
 			trigger.center = Geometry.GetCenter();
 		}

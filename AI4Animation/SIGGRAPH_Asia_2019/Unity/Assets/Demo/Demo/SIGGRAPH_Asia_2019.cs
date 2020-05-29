@@ -34,9 +34,11 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
     private float UserControl = 0f;
 	private float NetworkControl = 0f;
 
-	private float InteractionSmoothing = 0.9f;
+	private float InteractionSmoothing = 0.5f;
 
 	private bool IsInteracting = false;
+    private bool IsCarrying = false; // describes if the character is actually carring
+    //something and is used to determine if the wrist pose correction should occur in postprocess.
 
 	private UltimateIK.Model RightFootIK, LeftFootIK;
 
@@ -88,7 +90,7 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
 		carry.UserControl = 0.1f;
 		carry.NetworkControl = 0f;
 
-		Controller.Signal open = Controller.AddSignal("Open");
+        Controller.Signal open = Controller.AddSignal("Open");
 		open.AddKey(KeyCode.F, true);
 		open.Velocity = 0f;
 		open.UserControl = 0.1f;
@@ -100,7 +102,7 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
 		sit.UserControl = 0.25f;
 		sit.NetworkControl = 0f;
 
-		Environment = new CylinderMap(4f, 9, 9, true);
+        Environment = new CylinderMap(4f, 9, 9, true);
 		Geometry = new CuboidMap(new Vector3Int(8, 8, 8));
 
 		TimeSeries = new TimeSeries(6, 6, 1f, 1f, 5);
@@ -142,17 +144,26 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
 		UserControl = Controller.PoolUserControl(Signals);
 		NetworkControl = Controller.PoolNetworkControl(Signals);
 
-		if(IsInteracting) {
-			//Do nothing because coroutines have control.
-		} else if(Controller.QuerySignal("Sit")) {
-			StartCoroutine(Sit());
-		} else if(Controller.QuerySignal("Carry")) {
-			StartCoroutine(Carry());
-		} else if(Controller.QuerySignal("Open")) {
-			StartCoroutine(Open());
-		} else {
-			Default();
-		}
+        if (IsInteracting)
+        {
+            //Do nothing because coroutines have control.
+        }
+        else if (Controller.QuerySignal("Sit"))
+        {
+            StartCoroutine(Sit());
+        }
+        else if (Controller.QuerySignal("Carry"))
+        {
+            StartCoroutine(Carry());
+        }
+        else if (Controller.QuerySignal("Open"))
+        {
+            StartCoroutine(Open());
+        }
+        else
+        {
+            Default();
+        }
 
 		//Input Bone Positions / Velocities
 		for(int i=0; i<Actor.Bones.Length; i++) {
@@ -230,14 +241,15 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
 			velocities[i] = velocity;
 		}
 
-		//Read Inverse Pose
-		for(int i=0; i<Actor.Bones.Length; i++) {
-			PosePrediction[i] = NeuralNetwork.ReadVector3().GetRelativePositionFrom(RootSeries.Transformations.Last());
-			velocities[i] = Vector3.Lerp(velocities[i], GetFramerate() * (PosePrediction[i] - Actor.Bones[i].Transform.position), 1f/GetFramerate());
-		}
+        //Read Inverse Pose
+        for (int i = 0; i < Actor.Bones.Length; i++)
+        {
+            PosePrediction[i] = NeuralNetwork.ReadVector3().GetRelativePositionFrom(RootSeries.Transformations.Last());
+            velocities[i] = Vector3.Lerp(velocities[i], GetFramerate() * (PosePrediction[i] - Actor.Bones[i].Transform.position), 1f / GetFramerate());
+        }
 
-		//Read Future Trajectory
-		for(int i=TimeSeries.PivotKey; i<TimeSeries.KeyCount; i++) {
+        //Read Future Trajectory
+        for (int i=TimeSeries.PivotKey; i<TimeSeries.KeyCount; i++) {
 			TimeSeries.Sample sample = TimeSeries.GetKey(i);
 			Vector3 pos = NeuralNetwork.ReadXZ().GetRelativePositionFrom(root);
 			Vector3 dir = NeuralNetwork.ReadXZ().normalized.GetRelativeDirectionFrom(root);
@@ -301,34 +313,39 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
 			PhaseSeries.Values[TimeSeries.GetKey(i).Index] = Mathf.Repeat(phase + NeuralNetwork.Read(), 1f);
 		}
 
-		//Interpolate Current to Future Trajectory
-		for(int i=0; i<TimeSeries.Samples.Length; i++) {
-			float weight = (float)(i % TimeSeries.Resolution) / TimeSeries.Resolution;
-			TimeSeries.Sample sample = TimeSeries.Samples[i];
-			TimeSeries.Sample prevSample = TimeSeries.GetPreviousKey(i);
-			TimeSeries.Sample nextSample = TimeSeries.GetNextKey(i);
-			//PhaseSeries.Values[sample.Index] = Mathf.Lerp(PhaseSeries.Values[prevSample.Index], PhaseSeries.Values[nextSample.Index], weight);
-			RootSeries.SetPosition(sample.Index, Vector3.Lerp(RootSeries.GetPosition(prevSample.Index), RootSeries.GetPosition(nextSample.Index), weight));
-			RootSeries.SetDirection(sample.Index, Vector3.Slerp(RootSeries.GetDirection(prevSample.Index), RootSeries.GetDirection(nextSample.Index), weight));
-			GoalSeries.Transformations[sample.Index] = Utility.Interpolate(GoalSeries.Transformations[prevSample.Index], GoalSeries.Transformations[nextSample.Index], weight);
-			for(int j=0; j<StyleSeries.Styles.Length; j++) {
-				StyleSeries.Values[i][j] = Mathf.Lerp(StyleSeries.Values[prevSample.Index][j], StyleSeries.Values[nextSample.Index][j], weight);
-			}
-			for(int j=0; j<GoalSeries.Actions.Length; j++) {
-				GoalSeries.Values[i][j] = Mathf.Lerp(GoalSeries.Values[prevSample.Index][j], GoalSeries.Values[nextSample.Index][j], weight);
-			}
-		}
+        //Interpolate Current to Future Trajectory
 
-		//Assign Posture
-		transform.position = RootSeries.GetPosition(TimeSeries.Pivot);
+        for (int i = 0; i < TimeSeries.Samples.Length; i++)
+        {
+            float weight = (float)(i % TimeSeries.Resolution) / TimeSeries.Resolution;
+            TimeSeries.Sample sample = TimeSeries.Samples[i];
+            TimeSeries.Sample prevSample = TimeSeries.GetPreviousKey(i);
+            TimeSeries.Sample nextSample = TimeSeries.GetNextKey(i);
+            //PhaseSeries.Values[sample.Index] = Mathf.Lerp(PhaseSeries.Values[prevSample.Index], PhaseSeries.Values[nextSample.Index], weight);
+            RootSeries.SetPosition(sample.Index, Vector3.Lerp(RootSeries.GetPosition(prevSample.Index), RootSeries.GetPosition(nextSample.Index), weight));
+            RootSeries.SetDirection(sample.Index, Vector3.Slerp(RootSeries.GetDirection(prevSample.Index), RootSeries.GetDirection(nextSample.Index), weight));
+            GoalSeries.Transformations[sample.Index] = Utility.Interpolate(GoalSeries.Transformations[prevSample.Index], GoalSeries.Transformations[nextSample.Index], weight);
+            for (int j = 0; j < StyleSeries.Styles.Length; j++)
+            {
+                StyleSeries.Values[i][j] = Mathf.Lerp(StyleSeries.Values[prevSample.Index][j], StyleSeries.Values[nextSample.Index][j], weight);
+            }
+            for (int j = 0; j < GoalSeries.Actions.Length; j++)
+            {
+                GoalSeries.Values[i][j] = Mathf.Lerp(GoalSeries.Values[prevSample.Index][j], GoalSeries.Values[nextSample.Index][j], weight);
+            }
+        }
+
+        //Assign Posture
+        transform.position = RootSeries.GetPosition(TimeSeries.Pivot);
 		transform.rotation = RootSeries.GetRotation(TimeSeries.Pivot);
-		for(int i=0; i<Actor.Bones.Length; i++) {
-			Actor.Bones[i].Velocity = velocities[i];
-			Actor.Bones[i].Transform.position = positions[i];
-			Actor.Bones[i].Transform.rotation = Quaternion.LookRotation(forwards[i], upwards[i]);
-			Actor.Bones[i].ApplyLength();
-		}
-	}
+        for (int i = 0; i < Actor.Bones.Length; i++)
+        {
+            Actor.Bones[i].Velocity = velocities[i];
+            Actor.Bones[i].Transform.position = positions[i];
+            Actor.Bones[i].Transform.rotation = Quaternion.LookRotation(forwards[i], upwards[i]);
+            Actor.Bones[i].ApplyLength();
+        }
+    }
 
 	private void Default() {
 		if(Controller.ProjectionActive) {
@@ -408,12 +425,13 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
 		Interaction interaction = Controller.ProjectionInteraction != null ? Controller.ProjectionInteraction : Controller.GetClosestInteraction(transform);
 		if(interaction != null) {
 			Controller.ActiveInteraction = interaction;
-			// Debug.Log("Carrying started...");
+			Debug.Log("Carrying started...");
 			IsInteracting = true;
 
-			float duration = 0.5f;
-			float threshold = 0.2f;
-
+			float duration = 0.2f; // original value 0.2f
+			float threshold = 0.2f; //original value 0.2f
+            float contactThreshold = 0.5f; // added by me, original value 0.5
+    
 			Vector3 deltaPos = new Vector3(0f, -0.15f, 0.2f);
 			Quaternion deltaRot = Quaternion.Euler(-30f, 0f, 0f);
 
@@ -429,6 +447,7 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
 					0.5f
 				);
 				rotation *= deltaRot;
+                //Debug.Log(rotation);
 				rotation = Quaternion.Slerp(
 					rotation,
 					transform.rotation,
@@ -445,46 +464,67 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
 			bool HasContact() {
 				float left = ContactSeries.GetContact(TimeSeries.Pivot, "LeftWrist");
 				float right = ContactSeries.GetContact(TimeSeries.Pivot, "RightWrist");
-				return right > 0.5f && left > 0.5f || (left+right) > 1f;
+				return right > contactThreshold && left > contactThreshold || (left+right) > 2*contactThreshold;
 			}
 
-			//Move to the target location
-			// Debug.Log("Approaching to lift object...");
-			while(signal.Query()) {
-				ApplyStaticGoal(interaction.GetCenter().GetPosition(), interaction.GetCenter().GetForward(), Controller.PoolSignals());
-				Geometry.Setup(Geometry.Resolution);
-				Geometry.Sense(interaction.GetCenter(), LayerMask.GetMask("Interaction"), interaction.GetExtents(), InteractionSmoothing);
-				Geometry.Retransform(interaction.GetOrigin(GoalSeries.Transformations[TimeSeries.Pivot]));
-				if(Vector3.Distance(GetObjectMatrix(0f).GetPosition(), interaction.transform.position) < threshold) {
-					break;
-				}
-				yield return new WaitForSeconds(0f);
-			}
+            //float failPickTime = 0f;
 
-			//Move the object from the surface to the hands
-			// Debug.Log("Picking object...");
-			float tPick = Time.time;
-			Vector3 pos = interaction.transform.position;
-			Quaternion rot = interaction.transform.rotation;
+            //Move to the target location
+            Debug.Log("Approaching to lift object...");
+            while (signal.Query())
+            {
+                ApplyStaticGoal(interaction.GetCenter().GetPosition(), interaction.GetCenter().GetForward(), Controller.PoolSignals());
+                Geometry.Setup(Geometry.Resolution);
+                Geometry.Sense(interaction.GetCenter(), LayerMask.GetMask("Interaction"), interaction.GetExtents(), InteractionSmoothing);
+                Geometry.Retransform(interaction.GetOrigin(GoalSeries.Transformations[TimeSeries.Pivot]));
+                //Debug.Log(Vector3.Distance(GetObjectMatrix(0f).GetPosition(), interaction.transform.position));
+
+                //if the character is reasonably close to the object and still does not pick it up, gradually rise the threshold
+                if (Vector3.Distance(GetObjectMatrix(0f).GetPosition(), interaction.transform.position) < 0.7)
+                {
+                    //if (failPickTime == 0)
+                    //    failPickTime = Time.time;
+                    //else if (Mathf.Clamp((Time.time - failPickTime) / duration, 0f, 1f) < 1f)
+                    threshold += 0.02f;
+                    //Debug.Log("threshold value = " + threshold);
+                }                 
+                if (Vector3.Distance(GetObjectMatrix(0f).GetPosition(), interaction.transform.position) < threshold)
+                {
+                    //Debug.Break();
+                    break;
+                }
+                yield return new WaitForSeconds(0f);
+            }
+
+            //Move the object from the surface to the hands
+            Debug.Log("Picking object...");
+            float tPick = Time.time;
+            Vector3 pos = interaction.transform.position;
+            Quaternion rot = interaction.transform.rotation;
+            while (signal.Query() & HasContact())
+            {
+                float ratio = Mathf.Clamp((Time.time - tPick) / duration, 0f, 1f);
+                Matrix4x4 m = GetObjectMatrix(1f - ratio);
+                interaction.transform.position = Vector3.Lerp(pos, m.GetPosition(), ratio);
+                interaction.transform.rotation = Quaternion.Slerp(rot, m.GetRotation(), ratio);
+                ApplyStaticGoal(interaction.GetCenter().GetPosition(), interaction.GetCenter().GetForward(), Controller.PoolSignals());
+                Geometry.Setup(Geometry.Resolution);
+                Geometry.Sense(interaction.GetCenter(), LayerMask.GetMask("Interaction"), interaction.GetExtents(), InteractionSmoothing);
+                Geometry.Retransform(interaction.GetOrigin(GoalSeries.Transformations[TimeSeries.Pivot]));
+                if (ratio >= 1f)
+                {
+                    //Debug.Break();
+                    break;
+                }
+                yield return new WaitForSeconds(0f);
+            }
+
+            
+            //Move around with the object
+            Debug.Log("Carrying object and moving...");
 			while(signal.Query() && HasContact()) {
-				float ratio = Mathf.Clamp((Time.time - tPick) / duration, 0f, 1f);
-				Matrix4x4 m = GetObjectMatrix(1f-ratio);
-				interaction.transform.position = Vector3.Lerp(pos, m.GetPosition(), ratio);
-				interaction.transform.rotation = Quaternion.Slerp(rot, m.GetRotation(), ratio);
-				ApplyStaticGoal(interaction.GetCenter().GetPosition(), interaction.GetCenter().GetForward(), Controller.PoolSignals());
-				Geometry.Setup(Geometry.Resolution);
-				Geometry.Sense(interaction.GetCenter(), LayerMask.GetMask("Interaction"), interaction.GetExtents(), InteractionSmoothing);
-				Geometry.Retransform(interaction.GetOrigin(GoalSeries.Transformations[TimeSeries.Pivot]));
-				if(ratio >= 1f) {
-					break;
-				}
-				yield return new WaitForSeconds(0f);
-			}
-			
-			//Move around with the object
-			// Debug.Log("Carrying object and moving...");
-			while(signal.Query() && HasContact()) {
-				Matrix4x4 m = GetObjectMatrix(0f);
+                IsCarrying = true;
+                Matrix4x4 m = GetObjectMatrix(0f);
 				interaction.transform.position = m.GetPosition();
 				interaction.transform.rotation = m.GetRotation();
 				ApplyDynamicGoal(
@@ -495,12 +535,15 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
 				);
 				Geometry.Setup(Geometry.Resolution);
 				Geometry.Sense(interaction.GetCenter(), LayerMask.GetMask("Interaction"), interaction.GetExtents(), InteractionSmoothing);
-				Geometry.Retransform(interaction.GetOrigin(GoalSeries.Transformations[TimeSeries.Pivot]));
+                //Debug.Log(interaction.GetCenter().GetColumn(3));
+                //Debug.Log(interaction.GetExtents());
+                //Debug.Break();
+                Geometry.Retransform(interaction.GetOrigin(GoalSeries.Transformations[TimeSeries.Pivot]));
 				yield return new WaitForSeconds(0f);
 			}
-
-			//Perform motions to start placing the object
-			// Debug.Log("Transitioning to placing down object...");
+            
+            //Perform motions to start placing the object
+            Debug.Log("Transitioning to placing down object...");
 			while(HasContact()) {
 				Matrix4x4 m = GetObjectMatrix(0f);
 				interaction.transform.position = m.GetPosition();
@@ -524,7 +567,7 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
 			}
 
 			//Make sure the object is again placed on the surface
-			// Debug.Log("Placing object...");
+			Debug.Log("Placing object...");
 			float tPlace = Time.time;
 			Vector3 aPosPlace = interaction.transform.position;
 			Vector3 bPosPlace = Utility.ProjectGround(aPosPlace, LayerMask.GetMask("Default", "Ground"));
@@ -557,33 +600,66 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
 			}
 
 			IsInteracting = false;
+            IsCarrying = false;
 			// Debug.Log("Carrying finished...");
 			Controller.ActiveInteraction = null;
 		}
+
+
 	}
-
+   
     protected override void Postprocess() {
-		Matrix4x4 rightFoot = Actor.GetBoneTransformation(ContactSeries.Bones[3]);
-		Matrix4x4 leftFoot = Actor.GetBoneTransformation(ContactSeries.Bones[4]);
-		RightFootIK.Objectives[0].SetTarget(rightFoot.GetPosition(), 1f-ContactSeries.Values[TimeSeries.Pivot][3]);
-		RightFootIK.Objectives[0].SetTarget(rightFoot.GetRotation());
-		LeftFootIK.Objectives[0].SetTarget(leftFoot.GetPosition(), 1f-ContactSeries.Values[TimeSeries.Pivot][4]);
-		LeftFootIK.Objectives[0].SetTarget(leftFoot.GetRotation());
-		RightFootIK.Solve();
-		LeftFootIK.Solve();
+        Matrix4x4 rightFoot = Actor.GetBoneTransformation(ContactSeries.Bones[3]);
+        Matrix4x4 leftFoot = Actor.GetBoneTransformation(ContactSeries.Bones[4]);
+        RightFootIK.Objectives[0].SetTarget(rightFoot.GetPosition(), 1f - ContactSeries.Values[TimeSeries.Pivot][3]);
+        RightFootIK.Objectives[0].SetTarget(rightFoot.GetRotation());
+        LeftFootIK.Objectives[0].SetTarget(leftFoot.GetPosition(), 1f - ContactSeries.Values[TimeSeries.Pivot][4]);
+        LeftFootIK.Objectives[0].SetTarget(leftFoot.GetRotation());
+        RightFootIK.Solve();
+        LeftFootIK.Solve();
 
-		Transform rightToe = Actor.FindBone("RightToe").Transform;
-		Vector3 rightPos = rightToe.transform.position;
-		rightPos.y = Mathf.Max(rightPos.y, 0.02f);
-		rightToe.position = rightPos;
+        Transform rightToe = Actor.FindBone("RightToe").Transform;
+        Vector3 rightPos = rightToe.transform.position;
+        rightPos.y = Mathf.Max(rightPos.y, 0.02f);
+        rightToe.position = rightPos;
 
-		Transform leftToe = Actor.FindBone("LeftToe").Transform;
-		Vector3 leftPos = leftToe.transform.position;
-		leftPos.y = Mathf.Max(leftPos.y, 0.02f);
-		leftToe.position = leftPos;
+        Transform leftToe = Actor.FindBone("LeftToe").Transform;
+        Vector3 leftPos = leftToe.transform.position;
+        leftPos.y = Mathf.Max(leftPos.y, 0.02f);
+        leftToe.position = leftPos;
+
+        //here begins the wrist pose correction in order to eliminate gap
+        //TODO: apply length to the bones and see if it gets fixed
+        //if (IsCarrying)
+        //{
+        //    if (Controller.ActiveInteraction != null)
+        //    {
+        //        //left wrist and elbow adjustment
+        //        Vector3 placeholder;
+        //        Transform leftWrist = Actor.FindBone("LeftWrist").Transform;
+
+        //        placeholder = Controller.ActiveInteraction.GetContact("LeftWrist").GetColumn(3);
+        //        leftWrist.position = placeholder;
+        //        //Vector3 direction = placeholder -
+        //        //    Actor.FindBone("LeftElbow").Transform.position;
+        //        //Actor.FindBone("LeftElbow").Transform.rotation =
+        //        //    Quaternion.LookRotation(direction, Actor.FindBone("LeftElbow").Transform.up);
+        //        Actor.FindBone("LeftWrist").ApplyLength();
+
+        //        //right wrist and elbow adjustment
+        //        Transform rightWrist = Actor.FindBone("RightWrist").Transform;
+        //        placeholder = Controller.ActiveInteraction.GetContact("RightWrist").GetColumn(3);
+        //        rightWrist.position = placeholder;
+        //        //direction = placeholder -
+        //        //    Actor.FindBone("RightElbow").Transform.position;
+        //        //Actor.FindBone("RightElbow").Transform.rotation =
+        //        //    Quaternion.LookRotation(direction, Actor.FindBone("RightElbow").Transform.up);
+        //        Actor.FindBone("RightWrist").ApplyLength();
+        //    }
+        //}
     }
 
-	protected override void OnGUIDerived() {
+    protected override void OnGUIDerived() {
 		if(!ShowGUI) {
 			return;
 		}

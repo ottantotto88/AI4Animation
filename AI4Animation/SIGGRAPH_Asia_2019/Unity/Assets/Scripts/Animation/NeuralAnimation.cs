@@ -56,13 +56,14 @@ public abstract class NeuralAnimation : MonoBehaviour {
 	}
 
 	public float GetFramerate() {
-		switch(Framerate) {
-			case FPS.Thirty:
-			return 30f;
-			case FPS.Sixty:
-			return 60f;
-		}
-		return 1f;
+        switch (Framerate)
+        {
+            case FPS.Thirty:
+                return 30f;
+            case FPS.Sixty:
+                return 60f;
+        }
+        return 30f;
 	}
 
 	#if UNITY_EDITOR

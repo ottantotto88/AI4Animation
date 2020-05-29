@@ -17,11 +17,13 @@ public static class Utility {
 			//Debug.Log("Invalid Closest Point Check: " + collider.name + " Parent: " + collider.transform.parent.name + " Type: Trigger");
 			return true;
 		}
+        /*
 		if(collider is MeshCollider) {
 			Debug.Log("Invalid Closest Point Check: " + collider.name + " Parent: " + collider.transform.name + " Parent: " + collider.transform.parent.name + " Type: MeshCollider");
 			return true;
-		}
-		return false;
+		}*/
+        return false;
+        
 	}
 
 	public static Vector3 GetClosestPointOverlapBox(Vector3 center, Vector3 halfExtents, Quaternion rotation, LayerMask mask, out Collider collider) {
