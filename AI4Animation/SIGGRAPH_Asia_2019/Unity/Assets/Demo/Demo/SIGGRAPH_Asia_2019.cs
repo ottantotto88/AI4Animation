@@ -16,7 +16,10 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
 	public bool ShowInteraction = true;
 	public bool ShowGUI = true;
 
-	private Controller Controller;
+    [SerializeField] private bool WristCorrectionEnabled = true; // added by me, gui control on wrist correction
+    [SerializeField] private bool AssignPoseControl = true;
+
+    private Controller Controller;
 	private TimeSeries TimeSeries;
 	private TimeSeries.Root RootSeries;
 	private TimeSeries.Style StyleSeries;
@@ -40,7 +43,7 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
     private bool IsCarrying = false; // describes if the character is actually carring
     //something and is used to determine if the wrist pose correction should occur in postprocess.
 
-	private UltimateIK.Model RightFootIK, LeftFootIK;
+	private UltimateIK.Model RightFootIK, LeftFootIK, RightWristIK, LeftWristIK;
 
 	public Controller GetController() {
 		return Controller;
@@ -131,7 +134,9 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
 		
 		RightFootIK = UltimateIK.BuildModel(Actor.FindTransform("RightHip"), Actor.GetBoneTransforms(ContactSeries.Bones[3]));
 		LeftFootIK = UltimateIK.BuildModel(Actor.FindTransform("LeftHip"), Actor.GetBoneTransforms(ContactSeries.Bones[4]));
-	}
+        RightWristIK = UltimateIK.BuildModel(Actor.FindTransform("RightWrist"), Actor.GetBoneTransforms("RightWrist"));
+        LeftWristIK = UltimateIK.BuildModel(Actor.FindTransform("LeftWrist"), Actor.GetBoneTransforms("LeftWrist"));
+    }
 
     protected override void Feed() {
 		Controller.Update();
@@ -336,18 +341,26 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
         }
 
         //Assign Posture
-        transform.position = RootSeries.GetPosition(TimeSeries.Pivot);
-		transform.rotation = RootSeries.GetRotation(TimeSeries.Pivot);
-        for (int i = 0; i < Actor.Bones.Length; i++)
+        if (AssignPoseControl)
         {
-            Actor.Bones[i].Velocity = velocities[i];
-            Actor.Bones[i].Transform.position = positions[i];
-            Actor.Bones[i].Transform.rotation = Quaternion.LookRotation(forwards[i], upwards[i]);
-            Actor.Bones[i].ApplyLength();
+            transform.position = RootSeries.GetPosition(TimeSeries.Pivot);
+            transform.rotation = RootSeries.GetRotation(TimeSeries.Pivot);
+            for (int i = 0; i < Actor.Bones.Length; i++)
+            {
+                Actor.Bones[i].Velocity = velocities[i];
+                Actor.Bones[i].Transform.position = positions[i];
+                Actor.Bones[i].Transform.rotation = Quaternion.LookRotation(forwards[i], upwards[i]);
+                Actor.Bones[i].ApplyLength();
+
+            }
+            //Debug.Log("left elbow forward: " + forwards[13]);
+            //Debug.Log("left elbow upward: " + upwards[13]); 
         }
+
+
     }
 
-	private void Default() {
+    private void Default() {
 		if(Controller.ProjectionActive) {
 			ApplyStaticGoal(Controller.Projection.point, Vector3.ProjectOnPlane(Controller.Projection.point-transform.position, Vector3.up).normalized, Signals);
 			/*
@@ -631,8 +644,18 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
         leftPos.y = Mathf.Max(leftPos.y, 0.02f);
         leftToe.position = leftPos;
 
+        
 
+        if(WristCorrectionEnabled)
+            CorrectWrists();
+        
+    }
+
+    //function added by me in order to correct wrists positions when carrying objects.
+    protected void CorrectWrists()
+    {
         //here begins the wrist pose correction in order to eliminate gap
+        
         if (IsCarrying)
         {
             //there must be an active interaction and it must contain the correct position reference,
@@ -643,15 +666,20 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
             {
                 Transform leftWrist = Actor.FindBone("LeftWrist").Transform;
                 Transform rightWrist = Actor.FindBone("RightWrist").Transform;
-                Debug.Log("leftwrist pos: " + leftWrist.position);
+                //Debug.Log("leftwrist pos: " + leftWrist.position);
                 Vector3 placeholder = Controller.ActiveInteraction.GetContact("LeftWrist").GetColumn(3);
-                Debug.Log("target pos : " + placeholder);
-                Debug.Log("distance between wrist and target: " +
-                    Vector3.Distance(placeholder, leftWrist.position));
-                if (Vector3.Distance(placeholder, leftWrist.position) > 0.1f)
+                //Debug.Log("target pos : " + placeholder);
+                //Debug.Log("distance between wrist and target: " +
+                //    Vector3.Distance(placeholder, leftWrist.position));
+                float errorDistance = Vector3.Distance(placeholder, leftWrist.position);
+                if (errorDistance > 0.05f)
                 {
-                    Actor.FindBone("LeftElbow").Transform.rotation *= Quaternion.Euler(0, 0, -10);
-                    Actor.FindBone("RightElbow").Transform.rotation *= Quaternion.Euler(0, 0, 10);
+                    //Actor.FindBone("LeftElbow").Transform.rotation *= Quaternion.Euler(0, 0, -10);
+                    //Actor.FindBone("RightElbow").Transform.rotation *= Quaternion.Euler(0, 0, 10);
+
+                    Actor.FindBone("LeftElbow").Transform.Rotate(new Vector3(0, 0, -10), Space.Self);
+                    Actor.FindBone("RightElbow").Transform.Rotate(new Vector3(0, 0, 10), Space.Self);
+                    
                     Actor.FindBone("LeftElbow").ApplyLength();
                     Actor.FindBone("RightElbow").ApplyLength();
 
@@ -679,7 +707,13 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
                 //Actor.FindBone("RightWrist").ApplyLength();
             }
         }
+        Matrix4x4 rightWristM = Actor.GetBoneTransformation("RightWrist");
+        Matrix4x4 leftWristM = Actor.GetBoneTransformation("LeftWrist");
+        RightWristIK.Objectives[0].SetTarget(rightWristM.GetPosition(), 1);
+        RightWristIK.Objectives[0].SetTarget(rightWristM.GetRotation());
+        RightWristIK.Solve();
     }
+
 
     protected override void OnGUIDerived() {
 		if(!ShowGUI) {
