@@ -287,6 +287,8 @@ public class VoxelCollider : MonoBehaviour {
             Target.Combine = EditorGUILayout.Toggle("Combine Meshes", Target.Combine);
             Target.Optimise = EditorGUILayout.Toggle("Optimise", Target.Optimise);
             Target.Resolution = Mathf.Clamp(EditorGUILayout.IntField("Resolution", Target.Resolution), 1, 50);
+            Target.BoundsMin = EditorGUILayout.Vector3Field("BoundsMin", Target.BoundsMin);
+            Target.BoundsMax = EditorGUILayout.Vector3Field("BoundsMax", Target.BoundsMax);
             EditorGUILayout.HelpBox("Voxels: " + Target.GetVoxels().Length, MessageType.None);
             EditorGUILayout.HelpBox("Bounds Min: " + Target.BoundsMin.ToString("F3"), MessageType.None);
             EditorGUILayout.HelpBox("Bounds Max: " + Target.BoundsMax.ToString("F3"), MessageType.None);

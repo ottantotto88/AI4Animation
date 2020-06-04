@@ -15,7 +15,7 @@ public class Actor : MonoBehaviour {
 	public bool InspectSkeleton = false;
 	
 	public bool DrawRoot = false;
-	public bool DrawSkeleton = true;
+	public bool DrawSkeleton = false;
 	public bool DrawTransforms = false;
 	public bool DrawVelocities = false;
 	public bool DrawAccelerations = false;
