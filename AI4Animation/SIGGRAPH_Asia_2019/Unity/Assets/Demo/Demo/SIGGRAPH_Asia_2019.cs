@@ -438,7 +438,7 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
 		Interaction interaction = Controller.ProjectionInteraction != null ? Controller.ProjectionInteraction : Controller.GetClosestInteraction(transform);
 		if(interaction != null) {
 			Controller.ActiveInteraction = interaction;
-			Debug.Log("Carrying started...");
+			//Debug.Log("Carrying started...");
 			IsInteracting = true;
 
 			float duration = 0.2f; // original value 0.2f, describes max pickup time, no prob with this.
@@ -484,7 +484,7 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
             //float failPickTime = 0f;
 
             //Move to the target location
-            Debug.Log("Approaching to lift object...");
+            //Debug.Log("Approaching to lift object...");
             while (signal.Query())
             {
                 ApplyStaticGoal(interaction.GetCenter().GetPosition(), interaction.GetCenter().GetForward(), Controller.PoolSignals());
@@ -511,7 +511,7 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
             }
 
             //Move the object from the surface to the hands
-            Debug.Log("Picking object...");
+            //Debug.Log("Picking object...");
             float tPick = Time.time;
             Vector3 pos = interaction.transform.position;
             Quaternion rot = interaction.transform.rotation;
@@ -536,7 +536,7 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
 
             
             //Move around with the object
-            Debug.Log("Carrying object and moving...");
+            //Debug.Log("Carrying object and moving...");
 			while(signal.Query() && HasContact()) {
                 IsCarrying = true;
                 Matrix4x4 m = GetObjectMatrix(0f);
@@ -558,7 +558,7 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
 			}
             
             //Perform motions to start placing the object
-            Debug.Log("Transitioning to placing down object...");
+            //Debug.Log("Transitioning to placing down object...");
 			while(HasContact()) {
                 contactThreshold = 0.5f; // in LP theory this should actually not have any effect
 				Matrix4x4 m = GetObjectMatrix(0f);
@@ -583,7 +583,7 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
 			}
 
 			//Make sure the object is again placed on the surface
-			Debug.Log("Placing object...");
+			//Debug.Log("Placing object...");
 			float tPlace = Time.time;
 			Vector3 aPosPlace = interaction.transform.position;
 			Vector3 bPosPlace = Utility.ProjectGround(aPosPlace, LayerMask.GetMask("Default", "Ground"));
@@ -650,6 +650,22 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
             CorrectWrists();
         
     }
+
+    protected void CorrectWrists1()
+    {
+        if (IsCarrying)
+        {
+            if (Controller.ActiveInteraction != null)
+            {
+                float wristDistance = 
+                    Vector3.Distance(Actor.FindBone("RightWrist").Transform.position, Actor.FindBone("LeftWrist").Transform.position);
+                Debug.Log("ratio: " + 
+                    Controller.ActiveInteraction.GetExtents().x/wristDistance);
+            }
+        }
+
+    }
+
 
     //function added by me in order to correct wrists positions when carrying objects.
     protected void CorrectWrists()
