@@ -50,6 +50,16 @@ public class Interaction : MonoBehaviour {
 		return Vector3.Scale(transform.lossyScale.Positive(), GetGeometry().GetExtents());
 	}
 
+    //actor interface allowing x scale of bounds in order to correct wrist position
+    public void ScaleExtentsX(float mScale)
+    {
+        if (Geometry == null)
+        {
+            Geometry = GetComponent<VoxelCollider>();
+        }
+        Geometry.ScaleBoundsX(mScale);
+    }
+
 	public void AddContact() {
 		Transform container = transform.Find("Contacts");
 		if(container == null) {

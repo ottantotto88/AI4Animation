@@ -21,6 +21,7 @@ public class VoxelCollider : MonoBehaviour {
 	public bool ShowGeometry = false;
 
     private Transform Colliders = null;
+    private int sccalingIterations = 0; //describes the number of times that the extends x had shrunk.
 
     void Reset() {
         Generate();
@@ -258,6 +259,18 @@ public class VoxelCollider : MonoBehaviour {
         t.gameObject.isStatic = false;
         for(int i=0; i<t.childCount; i++) {
             Setup(t.GetChild(i));
+        }
+    }
+
+    //procedure added by me, it allows arbitrary bounds scaling, considering them centered on 0
+    public void ScaleBoundsX(float mScale)
+    {
+        // a max number of iterations is allowed in  order to not shrink bounds too much
+        if (sccalingIterations < 2)
+        {
+            sccalingIterations++;
+            BoundsMin.x *= mScale;
+            BoundsMax.x *= mScale;
         }
     }
 

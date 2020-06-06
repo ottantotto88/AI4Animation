@@ -647,7 +647,7 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
         
 
         if(WristCorrectionEnabled)
-            CorrectWrists();
+            CorrectWrists1();
         
     }
 
@@ -655,12 +655,20 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
     {
         if (IsCarrying)
         {
-            if (Controller.ActiveInteraction != null)
+            if (Controller.ActiveInteraction != null &&
+                Controller.ActiveInteraction.ContainsContact("LeftWrist") &&
+                Controller.ActiveInteraction.ContainsContact("RightWrist"))
             {
                 float wristDistance = 
                     Vector3.Distance(Actor.FindBone("RightWrist").Transform.position, Actor.FindBone("LeftWrist").Transform.position);
+                float contactDistance =
+                    Vector3.Distance(Controller.ActiveInteraction.GetContact("LeftWrist").GetColumn(3),
+                     Controller.ActiveInteraction.GetContact("RightWrist").GetColumn(3));
+                float ratio = contactDistance / wristDistance;
                 Debug.Log("ratio: " + 
                     Controller.ActiveInteraction.GetExtents().x/wristDistance);
+                if (ratio < 0.8)
+                    Controller.ActiveInteraction.ScaleExtentsX(0.6f);
             }
         }
 
