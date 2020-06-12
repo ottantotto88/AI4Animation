@@ -58,6 +58,8 @@ public class Interaction : MonoBehaviour {
             Geometry = GetComponent<VoxelCollider>();
         }
         Geometry.ScaleBoundsX(mScale);
+
+        
     }
 
 	public void AddContact() {

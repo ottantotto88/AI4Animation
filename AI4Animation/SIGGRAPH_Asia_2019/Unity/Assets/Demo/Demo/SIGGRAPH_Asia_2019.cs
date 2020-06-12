@@ -647,7 +647,7 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
         
 
         if(WristCorrectionEnabled)
-            CorrectWrists();
+            CorrectWrists1();
         
     }
 
@@ -659,6 +659,7 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
                 Controller.ActiveInteraction.ContainsContact("LeftWrist") &&
                 Controller.ActiveInteraction.ContainsContact("RightWrist"))
             {
+                
                 float wristDistance = 
                     Vector3.Distance(Actor.FindBone("RightWrist").Transform.position, Actor.FindBone("LeftWrist").Transform.position);
                 float contactDistance =

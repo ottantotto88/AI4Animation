@@ -271,6 +271,9 @@ public class VoxelCollider : MonoBehaviour {
             sccalingIterations++;
             BoundsMin.x *= mScale;
             BoundsMax.x *= mScale;
+            Vector3 newScale = transform.Find("Colliders").localScale;
+            newScale.x *= mScale;
+            transform.Find("Colliders").localScale = newScale;
         }
     }
 
