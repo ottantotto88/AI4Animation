@@ -647,7 +647,7 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
         
 
         if(WristCorrectionEnabled)
-            CorrectWrists1();
+            CorrectWrists();
         
     }
 
@@ -704,8 +704,8 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
                     Actor.FindBone("LeftElbow").Transform.Rotate(new Vector3(0, 0, -10), Space.Self);
                     Actor.FindBone("RightElbow").Transform.Rotate(new Vector3(0, 0, 10), Space.Self);
                     
-                    Actor.FindBone("LeftElbow").ApplyLength();
-                    Actor.FindBone("RightElbow").ApplyLength();
+                    Actor.FindBone("RightWrist").ApplyLength();
+                    Actor.FindBone("LeftWrist").ApplyLength();
 
                 }
                 //left wrist and elbow adjustment
@@ -737,6 +737,30 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
         RightWristIK.Objectives[0].SetTarget(rightWristM.GetRotation());
         RightWristIK.Solve();
     }
+
+    protected void CorrectWristsPosition()
+    {
+        if (IsCarrying)
+        {
+            if (Controller.ActiveInteraction != null &&
+                Controller.ActiveInteraction.ContainsContact("LeftWrist") &&
+                Controller.ActiveInteraction.ContainsContact("RightWrist"))
+            {
+                Transform leftWrist = Actor.FindBone("LeftWrist").Transform;
+                Transform rightWrist = Actor.FindBone("RightWrist").Transform;
+
+                Vector3 leftWristTarget = Controller.ActiveInteraction.GetContact("LeftWrist").GetColumn(3);
+                Vector3 rightWristTarget = Controller.ActiveInteraction.GetContact("RightWrist").GetColumn(3);
+
+                leftWrist.transform.position = leftWristTarget;
+                rightWrist.transform.position = rightWristTarget;
+
+                Actor.FindBone("LeftWrist").ApplyLength();
+                Actor.FindBone("RightWrist").ApplyLength();
+            }
+        }
+    }
+
 
 
     protected override void OnGUIDerived() {

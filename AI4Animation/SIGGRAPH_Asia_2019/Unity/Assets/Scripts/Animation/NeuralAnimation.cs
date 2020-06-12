@@ -26,7 +26,7 @@ public abstract class NeuralAnimation : MonoBehaviour {
 		Setup();
     }
 
-    void Update() {
+    void LateUpdate() {
 		Utility.SetFPS(Mathf.RoundToInt(GetFramerate()));
 		if(NeuralNetwork != null && NeuralNetwork.Setup) {
 			System.DateTime t1 = Utility.GetTimestamp();
