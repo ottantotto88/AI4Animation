@@ -3,6 +3,9 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using DeepLearning;
+using System.Collections.Specialized;
+//using System.Collections.Specialized;
+//using System.Diagnostics;
 
 public class SIGGRAPH_Asia_2019 : NeuralAnimation {
 	
@@ -245,9 +248,9 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
 			upwards[i] = upward;
 			velocities[i] = velocity;
 		}
-
-        //Read Inverse Pose
-        for (int i = 0; i < Actor.Bones.Length; i++)
+		
+		//Read Inverse Pose
+		for (int i = 0; i < Actor.Bones.Length; i++)
         {
             PosePrediction[i] = NeuralNetwork.ReadVector3().GetRelativePositionFrom(RootSeries.Transformations.Last());
             velocities[i] = Vector3.Lerp(velocities[i], GetFramerate() * (PosePrediction[i] - Actor.Bones[i].Transform.position), 1f / GetFramerate());
@@ -343,16 +346,18 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
         //Assign Posture
         if (AssignPoseControl)
         {
+			Vector3 velocitiesSum = Vector3.zero;
             transform.position = RootSeries.GetPosition(TimeSeries.Pivot);
             transform.rotation = RootSeries.GetRotation(TimeSeries.Pivot);
             for (int i = 0; i < Actor.Bones.Length; i++)
             {
-                Actor.Bones[i].Velocity = velocities[i];
+                Actor.Bones[i].Velocity = velocities[i] + new Vector3(0.05f,0,-0.25f);
                 Actor.Bones[i].Transform.position = positions[i];
                 Actor.Bones[i].Transform.rotation = Quaternion.LookRotation(forwards[i], upwards[i]);
                 Actor.Bones[i].ApplyLength();
-
+				velocitiesSum += velocities[i];
             }
+			//Debug.Log("somma delle velocità:" + velocitiesSum);
             //Debug.Log("left elbow forward: " + forwards[13]);
             //Debug.Log("left elbow upward: " + upwards[13]); 
         }
@@ -666,8 +671,8 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
                     Vector3.Distance(Controller.ActiveInteraction.GetContact("LeftWrist").GetColumn(3),
                      Controller.ActiveInteraction.GetContact("RightWrist").GetColumn(3));
                 float ratio = contactDistance / wristDistance;
-                Debug.Log("ratio: " + 
-                    Controller.ActiveInteraction.GetExtents().x/wristDistance);
+                Debug.Log("o extents: " + Controller.ActiveInteraction.GetOExtents() 
+					+ "extents: "  + Controller.ActiveInteraction.GetExtents());
                 if (ratio < 0.8)
                     Controller.ActiveInteraction.ScaleExtentsX(0.6f);
             }

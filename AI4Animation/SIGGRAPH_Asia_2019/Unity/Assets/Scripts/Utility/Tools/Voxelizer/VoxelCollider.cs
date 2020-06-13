@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using VoxelSystem;
+using System.Collections.Specialized;
 #if UNITY_EDITOR
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -17,11 +18,14 @@ public class VoxelCollider : MonoBehaviour {
     public Vector3 BoundsMin = Vector3.zero;
     public Vector3 BoundsMax = Vector3.zero;
 
-	public bool ShowBounds = false;
+    
+
+    public bool ShowBounds = false;
 	public bool ShowGeometry = false;
 
     private Transform Colliders = null;
-    private int sccalingIterations = 0; //describes the number of times that the extends x had shrunk.
+    protected int scalingIterations = 0; //describes the number of times that the extends x had shrunk.
+    protected Vector3 oExtents = Vector3.zero;
 
     void Reset() {
         Generate();
@@ -262,13 +266,23 @@ public class VoxelCollider : MonoBehaviour {
         }
     }
 
+    public Vector3 GetOExtents()
+    {
+        if (oExtents == Vector3.zero)
+            return GetExtents();
+        return oExtents;
+    }
+
     //procedure added by me, it allows arbitrary bounds scaling, considering them centered on 0
     public void ScaleBoundsX(float mScale)
     {
+        //if the oextents are yet to be saved, then initialize it as the original extents before shrinking
+        if (oExtents == Vector3.zero)
+            oExtents = GetExtents();
         // a max number of iterations is allowed in  order to not shrink bounds too much
-        if (sccalingIterations < 2)
+        if (scalingIterations < 2)
         {
-            sccalingIterations++;
+            scalingIterations++;
             BoundsMin.x *= mScale;
             BoundsMax.x *= mScale;
             Vector3 newScale = transform.Find("Colliders").localScale;
@@ -277,7 +291,7 @@ public class VoxelCollider : MonoBehaviour {
         }
     }
 
-	#if UNITY_EDITOR
+#if UNITY_EDITOR
 	[CustomEditor(typeof(VoxelCollider))]
 	public class VoxelCollider_Editor : Editor {
 
@@ -302,6 +316,7 @@ public class VoxelCollider : MonoBehaviour {
             }
             Target.Combine = EditorGUILayout.Toggle("Combine Meshes", Target.Combine);
             Target.Optimise = EditorGUILayout.Toggle("Optimise", Target.Optimise);
+            Target.scalingIterations =  Mathf.Clamp(EditorGUILayout.IntField("Scaling iterations", Target.scalingIterations), 1, 50);
             Target.Resolution = Mathf.Clamp(EditorGUILayout.IntField("Resolution", Target.Resolution), 1, 50);
             Target.BoundsMin = EditorGUILayout.Vector3Field("BoundsMin", Target.BoundsMin);
             Target.BoundsMax = EditorGUILayout.Vector3Field("BoundsMax", Target.BoundsMax);
@@ -323,6 +338,6 @@ public class VoxelCollider : MonoBehaviour {
 		}
 
 	}
-	#endif
+#endif
 
 }

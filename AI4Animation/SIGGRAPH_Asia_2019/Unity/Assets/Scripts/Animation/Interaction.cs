@@ -1,5 +1,6 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
+using System.Collections.Specialized;
 using UnityEngine;
 #if UNITY_EDITOR
 using UnityEditor;
@@ -57,10 +58,17 @@ public class Interaction : MonoBehaviour {
         {
             Geometry = GetComponent<VoxelCollider>();
         }
-        Geometry.ScaleBoundsX(mScale);
-
-        
+		Geometry.ScaleBoundsX(mScale);
     }
+
+	public Vector3 GetOExtents()
+	{
+		if (Geometry == null)
+		{
+			Geometry = GetComponent<VoxelCollider>();
+		}
+		return Geometry.GetOExtents();
+	}
 
 	public void AddContact() {
 		Transform container = transform.Find("Contacts");
