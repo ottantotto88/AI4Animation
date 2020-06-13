@@ -21,8 +21,10 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
 
     [SerializeField] private bool WristCorrectionEnabled = true; // added by me, gui control on wrist correction
     [SerializeField] private bool AssignPoseControl = true;
+	[SerializeField] private Vector3 SlideCorrection = new Vector3(0.2f, 0, -1f);
 
-    private Controller Controller;
+
+	private Controller Controller;
 	private TimeSeries TimeSeries;
 	private TimeSeries.Root RootSeries;
 	private TimeSeries.Style StyleSeries;
@@ -351,7 +353,9 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
             transform.rotation = RootSeries.GetRotation(TimeSeries.Pivot);
             for (int i = 0; i < Actor.Bones.Length; i++)
             {
-                Actor.Bones[i].Velocity = velocities[i] + new Vector3(0.05f,0,-0.25f);
+				Actor.Bones[i].Velocity = velocities[i];
+				if (!IsCarrying)
+					Actor.Bones[i].Velocity += SlideCorrection;
                 Actor.Bones[i].Transform.position = positions[i];
                 Actor.Bones[i].Transform.rotation = Quaternion.LookRotation(forwards[i], upwards[i]);
                 Actor.Bones[i].ApplyLength();
@@ -652,7 +656,7 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
         
 
         if(WristCorrectionEnabled)
-            CorrectWrists1();
+            CorrectWrists();
         
     }
 
@@ -660,22 +664,32 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
     {
         if (IsCarrying)
         {
-            if (Controller.ActiveInteraction != null &&
-                Controller.ActiveInteraction.ContainsContact("LeftWrist") &&
-                Controller.ActiveInteraction.ContainsContact("RightWrist"))
-            {
-                
-                float wristDistance = 
-                    Vector3.Distance(Actor.FindBone("RightWrist").Transform.position, Actor.FindBone("LeftWrist").Transform.position);
-                float contactDistance =
-                    Vector3.Distance(Controller.ActiveInteraction.GetContact("LeftWrist").GetColumn(3),
-                     Controller.ActiveInteraction.GetContact("RightWrist").GetColumn(3));
-                float ratio = contactDistance / wristDistance;
-                Debug.Log("o extents: " + Controller.ActiveInteraction.GetOExtents() 
-					+ "extents: "  + Controller.ActiveInteraction.GetExtents());
-                if (ratio < 0.8)
-                    Controller.ActiveInteraction.ScaleExtentsX(0.6f);
-            }
+			if (Controller.ActiveInteraction != null && Controller.ActiveInteraction.GetGeometry().toCorrectm())
+			{
+				float wristDistance =
+						Vector3.Distance(Actor.FindBone("RightWrist").Transform.position, Actor.FindBone("LeftWrist").Transform.position);
+				if (Controller.ActiveInteraction.ContainsContact("LeftWrist") &&
+					Controller.ActiveInteraction.ContainsContact("RightWrist"))
+				{
+					float contactDistance =
+						Vector3.Distance(Controller.ActiveInteraction.GetContact("LeftWrist").GetColumn(3),
+						 Controller.ActiveInteraction.GetContact("RightWrist").GetColumn(3));
+					float ratio = contactDistance / wristDistance;
+
+					if (ratio < 0.8)
+						Controller.ActiveInteraction.ScaleExtentsX(0.6f);
+				}
+				//if the contacts are absent, attempt auto-correction, comparing original extents
+				else
+				{
+					Debug.Log("o extents: " + Controller.ActiveInteraction.GetOExtents()
+						+ "extents: " + Controller.ActiveInteraction.GetExtents());
+					float ratio = Controller.ActiveInteraction.GetOExtents().x / wristDistance;
+					Debug.Log("ratio: " + ratio);
+					if (ratio < 1)
+						Controller.ActiveInteraction.ScaleExtentsX(0.6f);
+				}
+			}
         }
 
     }
