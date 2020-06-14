@@ -18,13 +18,15 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
 	public bool ShowEnvironment = true;
 	public bool ShowInteraction = true;
 	public bool ShowGUI = true;
+    public enum CorrectionMethod {Positions,Rotations, Sensor, None}
 
     [SerializeField] private bool WristCorrectionEnabled = true; // added by me, gui control on wrist correction
     [SerializeField] private bool AssignPoseControl = true;
 	[SerializeField] private Vector3 SlideCorrection = new Vector3(0.2f, 0, -1f);
+    [SerializeField]
+    private CorrectionMethod correctionMethod = CorrectionMethod.Sensor;
 
-
-	private Controller Controller;
+    private Controller Controller;
 	private TimeSeries TimeSeries;
 	private TimeSeries.Root RootSeries;
 	private TimeSeries.Style StyleSeries;
@@ -632,7 +634,7 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
 
 
 	}
-   
+
     protected override void Postprocess() {
         Matrix4x4 rightFoot = Actor.GetBoneTransformation(ContactSeries.Bones[3]);
         Matrix4x4 leftFoot = Actor.GetBoneTransformation(ContactSeries.Bones[4]);
@@ -653,10 +655,23 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
         leftPos.y = Mathf.Max(leftPos.y, 0.02f);
         leftToe.position = leftPos;
 
-        
 
-        if(WristCorrectionEnabled)
-            CorrectWrists();
+
+        if (WristCorrectionEnabled)
+            switch (correctionMethod)
+            {
+                case CorrectionMethod.Positions:
+                    CorrectWristsPosition();
+                    break;
+                case CorrectionMethod.Rotations:
+                    CorrectWrists();
+                    break;
+                case CorrectionMethod.Sensor:
+                    CorrectWrists1();
+                    break;
+                case CorrectionMethod.None:
+                    break;
+            }
         
     }
 
