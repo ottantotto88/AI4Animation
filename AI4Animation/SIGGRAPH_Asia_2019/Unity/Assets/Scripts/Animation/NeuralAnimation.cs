@@ -35,11 +35,13 @@ public abstract class NeuralAnimation : MonoBehaviour {
 			NeuralNetwork.ResetPivot(); Read();
 			AnimationTime = (float)Utility.GetElapsedTime(t1);
 
-			System.DateTime t2 = Utility.GetTimestamp();
-			Postprocess();
-			PostprocessingTime = (float)Utility.GetElapsedTime(t2);
-		}
+            System.DateTime t2 = Utility.GetTimestamp();
+            Postprocess();
+            PostprocessingTime = (float)Utility.GetElapsedTime(t2);
+        }
     }
+
+    
 
     void OnGUI() {
 		if(NeuralNetwork != null && NeuralNetwork.Setup) {

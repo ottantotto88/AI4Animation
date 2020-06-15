@@ -1,5 +1,6 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
+using System.Collections.Specialized;
 using UnityEngine;
 #if UNITY_EDITOR
 using UnityEditor;
@@ -48,6 +49,25 @@ public class Interaction : MonoBehaviour {
 	
 	public Vector3 GetExtents() {
 		return Vector3.Scale(transform.lossyScale.Positive(), GetGeometry().GetExtents());
+	}
+
+    //actor interface allowing x scale of bounds in order to correct wrist position
+    public void ScaleExtentsX(float mScale)
+    {
+        if (Geometry == null)
+        {
+            Geometry = GetComponent<VoxelCollider>();
+        }
+		Geometry.ScaleBoundsX(mScale);
+    }
+
+	public Vector3 GetOExtents()
+	{
+		if (Geometry == null)
+		{
+			Geometry = GetComponent<VoxelCollider>();
+		}
+		return Geometry.GetOExtents();
 	}
 
 	public void AddContact() {

@@ -3,6 +3,9 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using DeepLearning;
+using System.Collections.Specialized;
+//using System.Collections.Specialized;
+//using System.Diagnostics;
 
 public class SIGGRAPH_Asia_2019 : NeuralAnimation {
 	
@@ -15,8 +18,15 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
 	public bool ShowEnvironment = true;
 	public bool ShowInteraction = true;
 	public bool ShowGUI = true;
+    public enum CorrectionMethod {Positions,Rotations, Sensor, None}
 
-	private Controller Controller;
+    [SerializeField] private bool WristCorrectionEnabled = true; // added by me, gui control on wrist correction
+    [SerializeField] private bool AssignPoseControl = true;
+	[SerializeField] private Vector3 SlideCorrection = new Vector3(0.2f, 0, -1f);
+    [SerializeField]
+    private CorrectionMethod correctionMethod = CorrectionMethod.Sensor;
+
+    private Controller Controller;
 	private TimeSeries TimeSeries;
 	private TimeSeries.Root RootSeries;
 	private TimeSeries.Style StyleSeries;
@@ -40,7 +50,7 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
     private bool IsCarrying = false; // describes if the character is actually carring
     //something and is used to determine if the wrist pose correction should occur in postprocess.
 
-	private UltimateIK.Model RightFootIK, LeftFootIK;
+	private UltimateIK.Model RightFootIK, LeftFootIK, RightWristIK, LeftWristIK;
 
 	public Controller GetController() {
 		return Controller;
@@ -131,7 +141,9 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
 		
 		RightFootIK = UltimateIK.BuildModel(Actor.FindTransform("RightHip"), Actor.GetBoneTransforms(ContactSeries.Bones[3]));
 		LeftFootIK = UltimateIK.BuildModel(Actor.FindTransform("LeftHip"), Actor.GetBoneTransforms(ContactSeries.Bones[4]));
-	}
+        RightWristIK = UltimateIK.BuildModel(Actor.FindTransform("RightWrist"), Actor.GetBoneTransforms("RightWrist"));
+        LeftWristIK = UltimateIK.BuildModel(Actor.FindTransform("LeftWrist"), Actor.GetBoneTransforms("LeftWrist"));
+    }
 
     protected override void Feed() {
 		Controller.Update();
@@ -240,9 +252,9 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
 			upwards[i] = upward;
 			velocities[i] = velocity;
 		}
-
-        //Read Inverse Pose
-        for (int i = 0; i < Actor.Bones.Length; i++)
+		
+		//Read Inverse Pose
+		for (int i = 0; i < Actor.Bones.Length; i++)
         {
             PosePrediction[i] = NeuralNetwork.ReadVector3().GetRelativePositionFrom(RootSeries.Transformations.Last());
             velocities[i] = Vector3.Lerp(velocities[i], GetFramerate() * (PosePrediction[i] - Actor.Bones[i].Transform.position), 1f / GetFramerate());
@@ -336,18 +348,30 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
         }
 
         //Assign Posture
-        transform.position = RootSeries.GetPosition(TimeSeries.Pivot);
-		transform.rotation = RootSeries.GetRotation(TimeSeries.Pivot);
-        for (int i = 0; i < Actor.Bones.Length; i++)
+        if (AssignPoseControl)
         {
-            Actor.Bones[i].Velocity = velocities[i];
-            Actor.Bones[i].Transform.position = positions[i];
-            Actor.Bones[i].Transform.rotation = Quaternion.LookRotation(forwards[i], upwards[i]);
-            Actor.Bones[i].ApplyLength();
+			Vector3 velocitiesSum = Vector3.zero;
+            transform.position = RootSeries.GetPosition(TimeSeries.Pivot);
+            transform.rotation = RootSeries.GetRotation(TimeSeries.Pivot);
+            for (int i = 0; i < Actor.Bones.Length; i++)
+            {
+				Actor.Bones[i].Velocity = velocities[i];
+				if (!IsCarrying)
+					Actor.Bones[i].Velocity += SlideCorrection;
+                Actor.Bones[i].Transform.position = positions[i];
+                Actor.Bones[i].Transform.rotation = Quaternion.LookRotation(forwards[i], upwards[i]);
+                Actor.Bones[i].ApplyLength();
+				velocitiesSum += velocities[i];
+            }
+			//Debug.Log("somma delle velocità:" + velocitiesSum);
+            //Debug.Log("left elbow forward: " + forwards[13]);
+            //Debug.Log("left elbow upward: " + upwards[13]); 
         }
+
+
     }
 
-	private void Default() {
+    private void Default() {
 		if(Controller.ProjectionActive) {
 			ApplyStaticGoal(Controller.Projection.point, Vector3.ProjectOnPlane(Controller.Projection.point-transform.position, Vector3.up).normalized, Signals);
 			/*
@@ -425,12 +449,13 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
 		Interaction interaction = Controller.ProjectionInteraction != null ? Controller.ProjectionInteraction : Controller.GetClosestInteraction(transform);
 		if(interaction != null) {
 			Controller.ActiveInteraction = interaction;
-			Debug.Log("Carrying started...");
+			//Debug.Log("Carrying started...");
 			IsInteracting = true;
 
-			float duration = 0.2f; // original value 0.2f
-			float threshold = 0.2f; //original value 0.2f
-            float contactThreshold = 0.5f; // added by me, original value 0.5
+			float duration = 0.2f; // original value 0.2f, describes max pickup time, no prob with this.
+			float threshold = 0.2f; //original value 0.2f, more means more responsive and less accurate
+            float contactThreshold = 0.30f; // added by me, original value 0.5, lower means more responsive
+            // and less picky
     
 			Vector3 deltaPos = new Vector3(0f, -0.15f, 0.2f);
 			Quaternion deltaRot = Quaternion.Euler(-30f, 0f, 0f);
@@ -470,7 +495,7 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
             //float failPickTime = 0f;
 
             //Move to the target location
-            Debug.Log("Approaching to lift object...");
+            //Debug.Log("Approaching to lift object...");
             while (signal.Query())
             {
                 ApplyStaticGoal(interaction.GetCenter().GetPosition(), interaction.GetCenter().GetForward(), Controller.PoolSignals());
@@ -485,7 +510,7 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
                     //if (failPickTime == 0)
                     //    failPickTime = Time.time;
                     //else if (Mathf.Clamp((Time.time - failPickTime) / duration, 0f, 1f) < 1f)
-                    threshold += 0.02f;
+                    threshold += 0.01f;
                     //Debug.Log("threshold value = " + threshold);
                 }                 
                 if (Vector3.Distance(GetObjectMatrix(0f).GetPosition(), interaction.transform.position) < threshold)
@@ -497,12 +522,13 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
             }
 
             //Move the object from the surface to the hands
-            Debug.Log("Picking object...");
+            //Debug.Log("Picking object...");
             float tPick = Time.time;
             Vector3 pos = interaction.transform.position;
             Quaternion rot = interaction.transform.rotation;
             while (signal.Query() & HasContact())
             {
+                //Debug.Break();
                 float ratio = Mathf.Clamp((Time.time - tPick) / duration, 0f, 1f);
                 Matrix4x4 m = GetObjectMatrix(1f - ratio);
                 interaction.transform.position = Vector3.Lerp(pos, m.GetPosition(), ratio);
@@ -521,7 +547,7 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
 
             
             //Move around with the object
-            Debug.Log("Carrying object and moving...");
+            //Debug.Log("Carrying object and moving...");
 			while(signal.Query() && HasContact()) {
                 IsCarrying = true;
                 Matrix4x4 m = GetObjectMatrix(0f);
@@ -543,8 +569,9 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
 			}
             
             //Perform motions to start placing the object
-            Debug.Log("Transitioning to placing down object...");
+            //Debug.Log("Transitioning to placing down object...");
 			while(HasContact()) {
+                contactThreshold = 0.5f; // in LP theory this should actually not have any effect
 				Matrix4x4 m = GetObjectMatrix(0f);
 				interaction.transform.position = m.GetPosition();
 				interaction.transform.rotation = m.GetRotation();
@@ -567,7 +594,7 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
 			}
 
 			//Make sure the object is again placed on the surface
-			Debug.Log("Placing object...");
+			//Debug.Log("Placing object...");
 			float tPlace = Time.time;
 			Vector3 aPosPlace = interaction.transform.position;
 			Vector3 bPosPlace = Utility.ProjectGround(aPosPlace, LayerMask.GetMask("Default", "Ground"));
@@ -607,7 +634,7 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
 
 
 	}
-   
+
     protected override void Postprocess() {
         Matrix4x4 rightFoot = Actor.GetBoneTransformation(ContactSeries.Bones[3]);
         Matrix4x4 leftFoot = Actor.GetBoneTransformation(ContactSeries.Bones[4]);
@@ -628,36 +655,148 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
         leftPos.y = Mathf.Max(leftPos.y, 0.02f);
         leftToe.position = leftPos;
 
-        //here begins the wrist pose correction in order to eliminate gap
-        //TODO: apply length to the bones and see if it gets fixed
-        //if (IsCarrying)
-        //{
-        //    if (Controller.ActiveInteraction != null)
-        //    {
-        //        //left wrist and elbow adjustment
-        //        Vector3 placeholder;
-        //        Transform leftWrist = Actor.FindBone("LeftWrist").Transform;
 
-        //        placeholder = Controller.ActiveInteraction.GetContact("LeftWrist").GetColumn(3);
-        //        leftWrist.position = placeholder;
-        //        //Vector3 direction = placeholder -
-        //        //    Actor.FindBone("LeftElbow").Transform.position;
-        //        //Actor.FindBone("LeftElbow").Transform.rotation =
-        //        //    Quaternion.LookRotation(direction, Actor.FindBone("LeftElbow").Transform.up);
-        //        Actor.FindBone("LeftWrist").ApplyLength();
 
-        //        //right wrist and elbow adjustment
-        //        Transform rightWrist = Actor.FindBone("RightWrist").Transform;
-        //        placeholder = Controller.ActiveInteraction.GetContact("RightWrist").GetColumn(3);
-        //        rightWrist.position = placeholder;
-        //        //direction = placeholder -
-        //        //    Actor.FindBone("RightElbow").Transform.position;
-        //        //Actor.FindBone("RightElbow").Transform.rotation =
-        //        //    Quaternion.LookRotation(direction, Actor.FindBone("RightElbow").Transform.up);
-        //        Actor.FindBone("RightWrist").ApplyLength();
-        //    }
-        //}
+        if (WristCorrectionEnabled)
+            switch (correctionMethod)
+            {
+                case CorrectionMethod.Positions:
+                    CorrectWristsPosition();
+                    break;
+                case CorrectionMethod.Rotations:
+                    CorrectWrists();
+                    break;
+                case CorrectionMethod.Sensor:
+                    CorrectWrists1();
+                    break;
+                case CorrectionMethod.None:
+                    break;
+            }
+        
     }
+
+    protected void CorrectWrists1()
+    {
+        if (IsCarrying)
+        {
+			if (Controller.ActiveInteraction != null && Controller.ActiveInteraction.GetGeometry().toCorrectm())
+			{
+				float wristDistance =
+						Vector3.Distance(Actor.FindBone("RightWrist").Transform.position, Actor.FindBone("LeftWrist").Transform.position);
+				if (Controller.ActiveInteraction.ContainsContact("LeftWrist") &&
+					Controller.ActiveInteraction.ContainsContact("RightWrist"))
+				{
+					float contactDistance =
+						Vector3.Distance(Controller.ActiveInteraction.GetContact("LeftWrist").GetColumn(3),
+						 Controller.ActiveInteraction.GetContact("RightWrist").GetColumn(3));
+					float ratio = contactDistance / wristDistance;
+
+					if (ratio < 0.8)
+						Controller.ActiveInteraction.ScaleExtentsX(0.6f);
+				}
+				//if the contacts are absent, attempt auto-correction, comparing original extents
+				else
+				{
+					Debug.Log("o extents: " + Controller.ActiveInteraction.GetOExtents()
+						+ "extents: " + Controller.ActiveInteraction.GetExtents());
+					float ratio = Controller.ActiveInteraction.GetOExtents().x / wristDistance;
+					Debug.Log("ratio: " + ratio);
+					if (ratio < 1)
+						Controller.ActiveInteraction.ScaleExtentsX(0.6f);
+				}
+			}
+        }
+
+    }
+
+
+    //function added by me in order to correct wrists positions when carrying objects.
+    protected void CorrectWrists()
+    {
+        //here begins the wrist pose correction in order to eliminate gap
+        
+        if (IsCarrying)
+        {
+            //there must be an active interaction and it must contain the correct position reference,
+            // standare wrist position is used otherwise
+            if (Controller.ActiveInteraction != null &&
+                Controller.ActiveInteraction.ContainsContact("LeftWrist") &&
+                Controller.ActiveInteraction.ContainsContact("RightWrist"))
+            {
+                Transform leftWrist = Actor.FindBone("LeftWrist").Transform;
+                Transform rightWrist = Actor.FindBone("RightWrist").Transform;
+                //Debug.Log("leftwrist pos: " + leftWrist.position);
+                Vector3 placeholder = Controller.ActiveInteraction.GetContact("LeftWrist").GetColumn(3);
+                //Debug.Log("target pos : " + placeholder);
+                //Debug.Log("distance between wrist and target: " +
+                //    Vector3.Distance(placeholder, leftWrist.position));
+                float errorDistance = Vector3.Distance(placeholder, leftWrist.position);
+                if (errorDistance > 0.05f)
+                {
+                    //Actor.FindBone("LeftElbow").Transform.rotation *= Quaternion.Euler(0, 0, -10);
+                    //Actor.FindBone("RightElbow").Transform.rotation *= Quaternion.Euler(0, 0, 10);
+
+                    Actor.FindBone("LeftElbow").Transform.Rotate(new Vector3(0, 0, -10), Space.Self);
+                    Actor.FindBone("RightElbow").Transform.Rotate(new Vector3(0, 0, 10), Space.Self);
+                    
+                    Actor.FindBone("RightWrist").ApplyLength();
+                    Actor.FindBone("LeftWrist").ApplyLength();
+
+                }
+                //left wrist and elbow adjustment
+                //Vector3 placeholder;
+                //Transform leftWrist = Actor.FindBone("LeftWrist").Transform;
+
+                //placeholder = Controller.ActiveInteraction.GetContact("LeftWrist").GetColumn(3);
+                //leftWrist.position = placeholder;
+                ////Vector3 direction = placeholder -
+                ////    Actor.FindBone("LeftElbow").Transform.position;
+                ////Actor.FindBone("LeftElbow").Transform.rotation =
+                ////    Quaternion.LookRotation(direction, Actor.FindBone("LeftElbow").Transform.up);
+                //Actor.FindBone("LeftWrist").ApplyLength();
+
+                ////right wrist and elbow adjustment
+                //Transform rightWrist = Actor.FindBone("RightWrist").Transform;
+                //placeholder = Controller.ActiveInteraction.GetContact("RightWrist").GetColumn(3);
+                //rightWrist.position = placeholder;
+                ////direction = placeholder -
+                ////    Actor.FindBone("RightElbow").Transform.position;
+                ////Actor.FindBone("RightElbow").Transform.rotation =
+                ////    Quaternion.LookRotation(direction, Actor.FindBone("RightElbow").Transform.up);
+                //Actor.FindBone("RightWrist").ApplyLength();
+            }
+        }
+        Matrix4x4 rightWristM = Actor.GetBoneTransformation("RightWrist");
+        Matrix4x4 leftWristM = Actor.GetBoneTransformation("LeftWrist");
+        RightWristIK.Objectives[0].SetTarget(rightWristM.GetPosition(), 1);
+        RightWristIK.Objectives[0].SetTarget(rightWristM.GetRotation());
+        RightWristIK.Solve();
+    }
+
+    protected void CorrectWristsPosition()
+    {
+        if (IsCarrying)
+        {
+            if (Controller.ActiveInteraction != null &&
+                Controller.ActiveInteraction.ContainsContact("LeftWrist") &&
+                Controller.ActiveInteraction.ContainsContact("RightWrist"))
+            {
+                Transform leftWrist = Actor.FindBone("LeftWrist").Transform;
+                Transform rightWrist = Actor.FindBone("RightWrist").Transform;
+
+                Vector3 leftWristTarget = Controller.ActiveInteraction.GetContact("LeftWrist").GetColumn(3);
+                Vector3 rightWristTarget = Controller.ActiveInteraction.GetContact("RightWrist").GetColumn(3);
+
+                leftWrist.transform.position = leftWristTarget;
+                rightWrist.transform.position = rightWristTarget;
+
+                Actor.FindBone("LeftWrist").ApplyLength();
+                Actor.FindBone("RightWrist").ApplyLength();
+            }
+        }
+    }
+
+
 
     protected override void OnGUIDerived() {
 		if(!ShowGUI) {
