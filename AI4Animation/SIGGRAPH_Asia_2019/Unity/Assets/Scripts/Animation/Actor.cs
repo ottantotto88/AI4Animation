@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Security.Cryptography.X509Certificates;
 using UnityEngine;
 
 #if UNITY_EDITOR
@@ -524,9 +525,15 @@ public class Actor : MonoBehaviour {
 		}
 
 		public void ApplyLength() {
-			if(GetParent() != null) {
+			if (GetParent() != null)
+			{
 				Transform.position = GetParent().Transform.position + Length * (Transform.position - GetParent().Transform.position).normalized;
 			}
+		}
+
+		public void CorrectPosition()
+		{
+
 		}
 	}
 

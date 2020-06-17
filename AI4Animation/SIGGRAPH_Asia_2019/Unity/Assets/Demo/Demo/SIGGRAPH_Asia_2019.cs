@@ -21,9 +21,12 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
     public enum CorrectionMethod {Positions,Rotations, Sensor, None}
 
     [SerializeField] private bool WristCorrectionEnabled = true; // added by me, gui control on wrist correction
-    [SerializeField] private bool AssignPoseControl = true;
+	[SerializeField] private bool SitCorrectionEnabled = true; // added by me, gui control on sit pose and legs correction
+	[SerializeField] private bool HeightCorrection = true; // added by me, gui control on height correction
+	[SerializeField] private bool AssignPoseControl = true;
 	[SerializeField] private Vector3 SlideCorrection = new Vector3(0.2f, 0, -1f);
-    [SerializeField]
+	//[SerializeField] private float characterHeightAdjustment = 0.3f;
+	[SerializeField]
     private CorrectionMethod correctionMethod = CorrectionMethod.Sensor;
 
     private Controller Controller;
@@ -356,13 +359,13 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
             for (int i = 0; i < Actor.Bones.Length; i++)
             {
 				Actor.Bones[i].Velocity = velocities[i];
-				if (!IsCarrying)
+				if (!IsInteracting)
 					Actor.Bones[i].Velocity += SlideCorrection;
                 Actor.Bones[i].Transform.position = positions[i];
                 Actor.Bones[i].Transform.rotation = Quaternion.LookRotation(forwards[i], upwards[i]);
                 Actor.Bones[i].ApplyLength();
-				velocitiesSum += velocities[i];
-            }
+				//velocitiesSum += velocities[i];
+			}
 			//Debug.Log("somma delle velocità:" + velocitiesSum);
             //Debug.Log("left elbow forward: " + forwards[13]);
             //Debug.Log("left elbow upward: " + upwards[13]); 
@@ -636,25 +639,27 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
 	}
 
     protected override void Postprocess() {
-        Matrix4x4 rightFoot = Actor.GetBoneTransformation(ContactSeries.Bones[3]);
-        Matrix4x4 leftFoot = Actor.GetBoneTransformation(ContactSeries.Bones[4]);
-        RightFootIK.Objectives[0].SetTarget(rightFoot.GetPosition(), 1f - ContactSeries.Values[TimeSeries.Pivot][3]);
-        RightFootIK.Objectives[0].SetTarget(rightFoot.GetRotation());
-        LeftFootIK.Objectives[0].SetTarget(leftFoot.GetPosition(), 1f - ContactSeries.Values[TimeSeries.Pivot][4]);
-        LeftFootIK.Objectives[0].SetTarget(leftFoot.GetRotation());
-        RightFootIK.Solve();
-        LeftFootIK.Solve();
+        if (StyleSeries.GetStyle(TimeSeries.Pivot, "Sit") < 0.5)
+        {
+            Matrix4x4 rightFoot = Actor.GetBoneTransformation(ContactSeries.Bones[3]);
+            Matrix4x4 leftFoot = Actor.GetBoneTransformation(ContactSeries.Bones[4]);
+            RightFootIK.Objectives[0].SetTarget(rightFoot.GetPosition(), 1f - ContactSeries.Values[TimeSeries.Pivot][3]);
+            RightFootIK.Objectives[0].SetTarget(rightFoot.GetRotation());
+            LeftFootIK.Objectives[0].SetTarget(leftFoot.GetPosition(), 1f - ContactSeries.Values[TimeSeries.Pivot][4]);
+            LeftFootIK.Objectives[0].SetTarget(leftFoot.GetRotation());
+            RightFootIK.Solve();
+            LeftFootIK.Solve();
 
-        Transform rightToe = Actor.FindBone("RightToe").Transform;
-        Vector3 rightPos = rightToe.transform.position;
-        rightPos.y = Mathf.Max(rightPos.y, 0.02f);
-        rightToe.position = rightPos;
+            Transform rightToe = Actor.FindBone("RightToe").Transform;
+            Vector3 rightPos = rightToe.transform.position;
+            rightPos.y = Mathf.Max(rightPos.y, 0.02f);
+            rightToe.position = rightPos;
 
-        Transform leftToe = Actor.FindBone("LeftToe").Transform;
-        Vector3 leftPos = leftToe.transform.position;
-        leftPos.y = Mathf.Max(leftPos.y, 0.02f);
-        leftToe.position = leftPos;
-
+            Transform leftToe = Actor.FindBone("LeftToe").Transform;
+            Vector3 leftPos = leftToe.transform.position;
+            leftPos.y = Mathf.Max(leftPos.y, 0.02f);
+            leftToe.position = leftPos;
+        }
 
 
         if (WristCorrectionEnabled)
@@ -672,8 +677,34 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
                 case CorrectionMethod.None:
                     break;
             }
-        
+		if (SitCorrectionEnabled)
+			CorrectSitLegs();
+
+		if (HeightCorrection)
+        {
+					Vector3 hipsPos = Actor.FindBone("Hips").Transform.position;
+					hipsPos.y = 1;
+					Actor.FindBone("Hips").Transform.position = hipsPos;	
+		}        
     }
+
+	protected void CorrectSitLegs()
+	{
+		if (StyleSeries.GetStyle(TimeSeries.Pivot, "Sit") > 0.8)
+		{
+			Actor.FindBone("Hips").Transform.position = 
+				Vector3.Lerp(Actor.FindBone("Hips").Transform.position, Controller.ActiveInteraction.GetContact("Hips").GetColumn(3), 0.5f); 
+
+			Vector3 lAnklePos = Actor.FindBone("LeftAnkle").Transform.localPosition;
+			lAnklePos.z = Mathf.Lerp(Actor.FindBone("LeftAnkle").Transform.localPosition.z, 0, 0.5f);
+			Actor.FindBone("LeftAnkle").Transform.localPosition = lAnklePos;
+
+			Vector3 rAnklePos = Actor.FindBone("RightAnkle").Transform.localPosition;
+			rAnklePos.z = Mathf.Lerp(Actor.FindBone("RightAnkle").Transform.localPosition.z, 0, 0.5f); ;
+			Actor.FindBone("RightAnkle").Transform.localPosition = rAnklePos;
+		}
+
+	}
 
     protected void CorrectWrists1()
     {
