@@ -25,7 +25,8 @@ public class VoxelCollider : MonoBehaviour {
 
     private Transform Colliders = null;
     protected int scalingIterations = 0; //describes the number of times that the extends x had shrunk.
-    protected bool toCorrect = true;
+    protected bool toCorrectCarry = true;
+    protected bool toCorrectSit = false;
     protected Vector3 oExtents = Vector3.zero;
 
     void Reset() {
@@ -275,9 +276,14 @@ public class VoxelCollider : MonoBehaviour {
         return oExtents;
     }
 
-    public bool toCorrectm()
+    public bool toCorrectCarrym()
     {
-        return toCorrect;
+        return toCorrectCarry;
+    }
+
+    public bool toCorrectSitm()
+    {
+        return toCorrectSit;
     }
     //procedure added by me, it allows arbitrary bounds scaling, considering them centered on 0
     public void ScaleBoundsX(float mScale)
@@ -322,7 +328,8 @@ public class VoxelCollider : MonoBehaviour {
             }
             Target.Combine = EditorGUILayout.Toggle("Combine Meshes", Target.Combine);
             Target.Optimise = EditorGUILayout.Toggle("Optimise", Target.Optimise);
-            Target.toCorrect = EditorGUILayout.Toggle("To correct:", Target.toCorrect);
+            Target.toCorrectCarry = EditorGUILayout.Toggle("To correct carry:", Target.toCorrectCarry);
+            Target.toCorrectSit = EditorGUILayout.Toggle("To correct sit:", Target.toCorrectSit);
             Target.scalingIterations =  Mathf.Clamp(EditorGUILayout.IntField("Scaling iterations", Target.scalingIterations), 1, 50);
             Target.Resolution = Mathf.Clamp(EditorGUILayout.IntField("Resolution", Target.Resolution), 1, 50);
             Target.BoundsMin = EditorGUILayout.Vector3Field("BoundsMin", Target.BoundsMin);

@@ -18,7 +18,7 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
 	public bool ShowEnvironment = true;
 	public bool ShowInteraction = true;
 	public bool ShowGUI = true;
-    public enum CorrectionMethod {Positions,Rotations, Sensor, None}
+    public enum CorrectionMethod {Positions,Rotations, Sensor, Experimental, None}
 
     [SerializeField] private bool WristCorrectionEnabled = true; // added by me, gui control on wrist correction
 	[SerializeField] private bool SitCorrectionEnabled = true; // added by me, gui control on sit pose and legs correction
@@ -501,6 +501,11 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
             //Debug.Log("Approaching to lift object...");
             while (signal.Query())
             {
+                Transform characterTrasform = this.transform;
+                Vector3 mposition = characterTrasform.position;
+                mposition.y = 0;
+                characterTrasform.position = mposition;
+
                 ApplyStaticGoal(interaction.GetCenter().GetPosition(), interaction.GetCenter().GetForward(), Controller.PoolSignals());
                 Geometry.Setup(Geometry.Resolution);
                 Geometry.Sense(interaction.GetCenter(), LayerMask.GetMask("Interaction"), interaction.GetExtents(), InteractionSmoothing);
@@ -661,6 +666,9 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
             leftToe.position = leftPos;
         }
 
+		//if (StyleSeries.GetStyle(TimeSeries.Pivot, "Idle") > 0.8)
+		//	for (int i = 0; i < Actor.Bones.Length; i++)
+		//		Actor.Bones[i].Velocity = Vector3.zero;
 
         if (WristCorrectionEnabled)
             switch (correctionMethod)
@@ -674,7 +682,10 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
                 case CorrectionMethod.Sensor:
                     CorrectWrists1();
                     break;
-                case CorrectionMethod.None:
+				case CorrectionMethod.Experimental:
+					CorrectWrists2();
+					break;
+				case CorrectionMethod.None:
                     break;
             }
 		if (SitCorrectionEnabled)
@@ -682,26 +693,32 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
 
 		if (HeightCorrection)
         {
-					Vector3 hipsPos = Actor.FindBone("Hips").Transform.position;
-					hipsPos.y = 1;
-					Actor.FindBone("Hips").Transform.position = hipsPos;	
+			if (StyleSeries.GetStyle(TimeSeries.Pivot, "Sit") < 0.6)
+			{
+				Vector3 hipsPos = Actor.FindBone("Hips").Transform.position;
+				hipsPos.y = Mathf.Lerp(1f, hipsPos.y, 0.3f);
+				Actor.FindBone("Hips").Transform.position = hipsPos;
+			}
 		}        
     }
 
 	protected void CorrectSitLegs()
 	{
-		if (StyleSeries.GetStyle(TimeSeries.Pivot, "Sit") > 0.8)
+		if (StyleSeries.GetStyle(TimeSeries.Pivot, "Sit") > 0.9)
 		{
-			Actor.FindBone("Hips").Transform.position = 
-				Vector3.Lerp(Actor.FindBone("Hips").Transform.position, Controller.ActiveInteraction.GetContact("Hips").GetColumn(3), 0.5f); 
+			if (Controller.ActiveInteraction != null && Controller.ActiveInteraction.GetGeometry().toCorrectSitm())
+			{
+				Actor.FindBone("Hips").Transform.position =
+				Vector3.Lerp(Actor.FindBone("Hips").Transform.position, Controller.ActiveInteraction.GetContact("Hips").GetColumn(3), 0.5f);
 
-			Vector3 lAnklePos = Actor.FindBone("LeftAnkle").Transform.localPosition;
-			lAnklePos.z = Mathf.Lerp(Actor.FindBone("LeftAnkle").Transform.localPosition.z, 0, 0.5f);
-			Actor.FindBone("LeftAnkle").Transform.localPosition = lAnklePos;
+				Vector3 lAnklePos = Actor.FindBone("LeftAnkle").Transform.localPosition;
+				lAnklePos.z = Mathf.Lerp(Actor.FindBone("LeftAnkle").Transform.localPosition.z, 0, 0.9f);
+				Actor.FindBone("LeftAnkle").Transform.localPosition = lAnklePos;
 
-			Vector3 rAnklePos = Actor.FindBone("RightAnkle").Transform.localPosition;
-			rAnklePos.z = Mathf.Lerp(Actor.FindBone("RightAnkle").Transform.localPosition.z, 0, 0.5f); ;
-			Actor.FindBone("RightAnkle").Transform.localPosition = rAnklePos;
+				Vector3 rAnklePos = Actor.FindBone("RightAnkle").Transform.localPosition;
+				rAnklePos.z = Mathf.Lerp(Actor.FindBone("RightAnkle").Transform.localPosition.z, 0, 0.9f); ;
+				Actor.FindBone("RightAnkle").Transform.localPosition = rAnklePos;
+			}
 		}
 
 	}
@@ -710,7 +727,7 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
     {
         if (IsCarrying)
         {
-			if (Controller.ActiveInteraction != null && Controller.ActiveInteraction.GetGeometry().toCorrectm())
+			if (Controller.ActiveInteraction != null && Controller.ActiveInteraction.GetGeometry().toCorrectCarrym())
 			{
 				float wristDistance =
 						Vector3.Distance(Actor.FindBone("RightWrist").Transform.position, Actor.FindBone("LeftWrist").Transform.position);
@@ -804,7 +821,41 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
         RightWristIK.Solve();
     }
 
-    protected void CorrectWristsPosition()
+	//final version of elbow rotation with wrist forced pos and extents comparison
+	protected void CorrectWrists2()
+	{
+		if (IsCarrying)
+		{
+			Vector3 leftWrist = Actor.FindBone("LeftWrist").Transform.localPosition;
+			Vector3 rightWrist = Actor.FindBone("RightWrist").Transform.localPosition;
+
+			leftWrist.z = 0;
+			rightWrist.z = 0;
+
+			Actor.FindBone("LeftWrist").Transform.localPosition = leftWrist;
+			Actor.FindBone("RightWrist").Transform.localPosition = rightWrist;
+
+			float wristDistance =
+						Vector3.Distance(Actor.FindBone("RightWrist").Transform.position, Actor.FindBone("LeftWrist").Transform.position);
+
+			float ratio = Controller.ActiveInteraction.GetOExtents().x / wristDistance;
+			if (ratio <1.2)
+			{
+				Actor.FindBone("LeftElbow").Transform.Rotate(new Vector3(0, 0, -30), Space.Self);
+				Actor.FindBone("RightElbow").Transform.Rotate(new Vector3(0, 0, 30), Space.Self);
+
+				//Actor.FindBone("RightWrist").ApplyLength();
+				//Actor.FindBone("LeftWrist").ApplyLength();	
+			}
+		}
+		//Matrix4x4 rightWristM = Actor.GetBoneTransformation("RightWrist");
+		//Matrix4x4 leftWristM = Actor.GetBoneTransformation("LeftWrist");
+		//RightWristIK.Objectives[0].SetTarget(rightWristM.GetPosition(), 1);
+		//RightWristIK.Objectives[0].SetTarget(rightWristM.GetRotation());
+		//RightWristIK.Solve();
+	}
+
+	protected void CorrectWristsPosition()
     {
         if (IsCarrying)
         {
