@@ -359,8 +359,8 @@ public class SIGGRAPH_Asia_2019 : NeuralAnimation {
             for (int i = 0; i < Actor.Bones.Length; i++)
             {
 				Actor.Bones[i].Velocity = velocities[i];
-				if (!IsInteracting)
-					Actor.Bones[i].Velocity += SlideCorrection;
+                if (!IsInteracting)
+                    Actor.Bones[i].Velocity += SlideCorrection;
                 Actor.Bones[i].Transform.position = positions[i];
                 Actor.Bones[i].Transform.rotation = Quaternion.LookRotation(forwards[i], upwards[i]);
                 Actor.Bones[i].ApplyLength();

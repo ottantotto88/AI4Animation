@@ -28,12 +28,13 @@ public abstract class NeuralAnimation : MonoBehaviour {
 
     void LateUpdate() {
 		Utility.SetFPS(Mathf.RoundToInt(GetFramerate()));
-		if(NeuralNetwork != null && NeuralNetwork.Setup) {
-			System.DateTime t1 = Utility.GetTimestamp();
-			NeuralNetwork.ResetPivot(); Feed();
-			NeuralNetwork.Predict();
-			NeuralNetwork.ResetPivot(); Read();
-			AnimationTime = (float)Utility.GetElapsedTime(t1);
+        if (NeuralNetwork != null && NeuralNetwork.Setup)
+        {
+            System.DateTime t1 = Utility.GetTimestamp();
+            NeuralNetwork.ResetPivot(); Feed();
+            NeuralNetwork.Predict();
+            NeuralNetwork.ResetPivot(); Read();
+            AnimationTime = (float)Utility.GetElapsedTime(t1);
 
             System.DateTime t2 = Utility.GetTimestamp();
             Postprocess();
